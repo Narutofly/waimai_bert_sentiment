@@ -1,0 +1,144 @@
+/* Wide screens use a shared content grid, not the mobile reading width.
+   Below 1440px the existing tablet/phone layout remains authoritative. */
+@media (min-width: 1440px) {
+  :root {
+    --desktop-content: min(calc(100% - 112px), clamp(1240px, calc(62.5vw + 340px), 1840px));
+    --desktop-card-padding: clamp(28px, 1.65vw, 40px);
+  }
+
+  .header-inner,
+  .app-shell > main,
+  .app-shell > footer,
+  .scene-stage,
+  .scene-bottom,
+  .scene-path {
+    width: var(--desktop-content);
+    max-width: none;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .header-inner { height: 76px; }
+  .brand b { font-size: 21px; }
+  .brand small { font-size: 11px; }
+  .brand-mark { width: 42px; height: 42px; }
+  .desktop-nav { gap: 38px; }
+  .desktop-nav a { font-size: 15px; }
+  .service-state { font-size: 12px; padding: 10px 14px; }
+  .workspace-section, .reviews-section, .model-report-section { scroll-margin-top: 104px; }
+
+  .app-shell > main { position: relative; isolation: isolate; padding-top: 48px; }
+  .app-shell > main::before {
+    content: '';
+    position: absolute;
+    inset: 0 -44px;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(ellipse 420px 350px at 0 200px, #fff2b924, transparent),
+      radial-gradient(ellipse 440px 420px at 100% 580px, #ebdfb51a, transparent);
+  }
+  .section-heading { margin-bottom: 26px; }
+  .section-heading h2 { font-size: clamp(32px, 1.6vw, 38px); }
+  .section-heading > p { font-size: 14px; }
+  .section-kicker { font-size: 11px; letter-spacing: 1.8px; }
+  .workspace-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 28px; }
+  .analyzer-card, .insight-card { padding: var(--desktop-card-padding); min-height: 600px; }
+  .analyzer-card { display: flex; flex-direction: column; }
+  .card-title-row { gap: 13px; }
+  .card-title-row h3 { font-size: 21px; }
+  .card-title-row p { font-size: 13px; line-height: 1.6; }
+  .card-icon { width: 45px; height: 45px; }
+  .demo-tag, .live-tag { font-size: 12px; }
+  .review-input { flex: 1; min-height: 310px; }
+  .review-input > span { font-size: 14px; }
+  .review-input textarea { flex: 1; min-height: 260px; height: auto; font-size: clamp(16px, .7vw, 18px); padding: 20px; line-height: 1.9; }
+  .review-input small, .quick-examples > span, .quick-examples button, .clear-input { font-size: 12px; }
+  .quick-examples { gap: 8px; margin-top: 18px; }
+  .quick-examples button { min-height: 36px; }
+  .analyzer-actions { margin-top: 22px; }
+  .upload-button, .analyze-button { font-size: 15px; min-height: 50px; }
+  .shortcut-hint { font-size: 12px; margin-bottom: 0; }
+  .inline-error { font-size: 13px; }
+
+  .metrics-grid { gap: 12px; margin-top: 26px; }
+  .metrics-grid > button { padding: 18px 20px; }
+  .metrics-grid span, .metrics-grid small { font-size: 13px; }
+  .metrics-grid strong { font-size: clamp(38px, 2vw, 48px); margin: 8px 0; }
+  .review-strip { padding: 14px 16px; font-size: 13px; margin-top: 16px; }
+  .charts-row { grid-template-columns: minmax(200px, 34%) minmax(0, 1fr); gap: 26px; margin-top: 28px; }
+  .donut { width: clamp(172px, 9vw, 208px); height: clamp(172px, 9vw, 208px); }
+  .donut::before { width: 74%; height: 74%; }
+  .donut strong { font-size: 34px; }
+  .donut span, .donut-legend { font-size: 12px; }
+  .donut-legend { gap: 20px; margin-top: 16px; }
+  .mini-heading { font-size: 13px; }
+  .histogram { height: 182px; margin-top: 18px; gap: 14px; }
+  .histogram-column i { width: min(40px, 65%); }
+  .histogram-column > span { font-size: 12px; }
+  .histogram-column small { font-size: 11px; bottom: -22px; }
+  .confidence-caption { font-size: 12px; margin-top: 30px; }
+  .ai-tip { margin-top: 28px; padding: 16px; }
+  .ai-tip b, .ai-tip p { font-size: 13px; }
+  .insight-loading { height: 480px; }
+
+  /* Let result metadata occupy the extra width; keep review copy readable. */
+  .reviews-section { margin-top: 60px; }
+  .review-toolbar { margin-top: 22px; }
+  .results-source, .filter-tabs button, .sort-select select, .export-button,
+  .review-tools input, .review-tools button { font-size: 14px; }
+  .review-tools label { max-width: 580px; }
+  .review-item { padding: 26px 30px; gap: 18px; }
+  .avatar { width: 44px; height: 44px; font-size: 13px; }
+  .review-body { display: grid; grid-template-columns: minmax(0, 1fr) 310px; column-gap: 36px; row-gap: 12px; }
+  .review-author { grid-column: 1 / -1; }
+  .review-author strong { font-size: 14px; }
+  .review-author span, .open-detail { font-size: 12px; }
+  .review-body > p { grid-column: 1; margin: 0; max-width: 62ch; font-size: 16px; line-height: 1.85; }
+  .review-result { grid-column: 2; display: flex; align-content: flex-start; justify-content: flex-start; gap: 12px; align-self: start; }
+  .review-needed { margin-left: 0; flex-basis: 100%; }
+  .confidence-line b, .review-needed, .list-footer { font-size: 12px; }
+  .confidence-line > i { width: 80px; }
+  .sentiment-pill { font-size: 13px; }
+  .pagination, .active-criteria, .active-criteria button { font-size: 12px; }
+
+  .model-report-grid { gap: 28px; }
+  .dataset-card, .metrics-card { padding: var(--desktop-card-padding); }
+  .report-card-heading h3 { font-size: 19px; }
+  .report-card-heading p { font-size: 12px; }
+  .dataset-bars b, .dataset-bars small, .dataset-note,
+  .metric-placeholders span, .metric-placeholders small,
+  .metrics-contract p, .model-tags span { font-size: 12px; }
+  .dataset-bars { gap: 18px; }
+  .dataset-total strong { font-size: 38px; }
+  .dataset-total span, .dataset-total small { font-size: 12px; }
+  .metric-placeholders strong { font-size: 32px; }
+  .model-hero-card { grid-template-columns: 1fr 1fr; padding: 40px; gap: 50px; }
+  .model-copy h2 { font-size: 34px; }
+  .model-copy p { font-size: 14px; max-width: 54ch; }
+  .pipeline-step b { font-size: 14px; }
+  .pipeline-step small { font-size: 11px; }
+  .pipeline-step { padding: 20px 16px; }
+  .app-shell > footer { font-size: 12px; }
+
+  /* The welcome copy and workbench share a left edge; bound the illustration
+     so an ultrawide monitor does not stretch the character's composition. */
+  .scene-stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 720px; gap: 44px; padding-top: 46px; }
+  .scene-art { width: min(100%, 690px); justify-self: end; min-height: 620px; margin-right: 28px; }
+  .scene-copy h1 { font-size: clamp(76px, 4.5vw, 100px); }
+  .scene-description { font-size: 19px; }
+  .scene-edition, .scene-caption { font-size: 12px; }
+  .scene-primary { font-size: 17px; min-height: 62px; padding-left: 27px; }
+  .scene-secondary { font-size: 15px; }
+  .scene-note p { font-size: 14px; }
+  .scene-note small { font-size: 10px; }
+  .mascot-greeting { font-size: 14px; }
+  .floating-review b { font-size: 15px; }
+  .floating-review small, .floating-review div > span { font-size: 11px; }
+  .scene-bottom { padding-bottom: 28px; }
+  .scene-scroll, .scene-tools button { font-size: 12px; }
+  .scene-path { padding-top: 20px; padding-bottom: 20px; }
+  .scene-path b { font-size: 15px; }
+  .scene-path small { font-size: 12px; }
+}

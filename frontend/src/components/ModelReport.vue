@@ -1,5 +1,6 @@
 <script setup>
 import AppIcon from './AppIcon.vue'
+import { DEMO_MODE } from '../services/sentiment.js'
 
 const datasets = [
   { label: '训练集', value: 9575, percent: 100 },
@@ -17,15 +18,15 @@ const pipeline = [
 <template>
   <section id="model" class="model-report-section">
     <div class="section-heading model-report-heading">
-      <div><span class="section-kicker">04 / MODEL</span><h2>模型报告</h2></div>
-      <span class="integration-badge"><i /> 前端接口已就绪</span>
+      <div><span class="section-kicker">03 / MODEL</span><h2>模型说明</h2></div>
+      <span class="integration-badge"><i /> {{ DEMO_MODE ? '演示模式 · 尚未连接模型' : '接口模式 · 待联调验收' }}</span>
     </div>
     <div class="model-hero-card">
       <div class="model-copy">
         <span class="model-chip"><AppIcon name="spark" /> BERT SENTIMENT</span>
         <h2>中文 BERT，专注外卖评价二分类</h2>
-        <p>从评价文本到情感标签，前端只展示接口返回的真实结果。模型指标将在评估脚本导出后接入，不使用虚构分数。</p>
-        <div class="model-tags"><span>bert-base-chinese</span><span>好评 / 差评</span><span>复核阈值 &lt; 80%</span></div>
+        <p>每条评价只有一个预测标签：0 代表差评，1 代表好评。混合、反讽等表达仍会得到二分类结果，需要结合原文理解。低置信度提醒不是第三个类别。</p>
+        <div class="model-tags"><span>bert-base-chinese</span><span>0 差评 / 1 好评</span><span>演示与真实结果分开标识</span></div>
       </div>
       <div class="pipeline" aria-label="模型推理流程">
         <div v-for="(step, index) in pipeline" :key="step.label" class="pipeline-step">
@@ -37,7 +38,7 @@ const pipeline = [
     </div>
     <div class="model-report-grid">
       <article class="dataset-card app-card">
-        <div class="report-card-heading"><div class="card-icon yellow"><AppIcon name="database" /></div><div><h3>数据集结构</h3><p>仓库当前 CSV 样本规模</p></div></div>
+        <div class="report-card-heading"><div class="card-icon yellow"><AppIcon name="database" /></div><div><h3>数据集结构</h3><p>初始数据快照 · 2026-09-23 · 非实时统计</p></div></div>
         <div class="dataset-total"><strong>11,969</strong><span>总样本</span><small>训练 / 验证 / 测试</small></div>
         <div class="dataset-bars">
           <div v-for="dataset in datasets" :key="dataset.label"><span><b>{{ dataset.label }}</b><small>{{ dataset.value.toLocaleString() }} 条</small></span><i><em :style="{ width: `${dataset.percent}%` }" /></i></div>
@@ -52,7 +53,7 @@ const pipeline = [
           <div><span>Recall</span><strong>—</strong><small>召回率</small></div>
           <div><span>F1 Score</span><strong>—</strong><small>综合指标</small></div>
         </div>
-        <div class="metrics-contract"><span><AppIcon name="code" /> 建议接口</span><code>GET /api/v1/model-info</code><p>返回模型版本、数据集规模、四项指标、混淆矩阵与推理耗时。</p></div>
+        <div class="metrics-contract"><span><AppIcon name="chart" /> 指标尚未发布</span><p>测试集准确率与单条评价的置信度含义不同，正式评估完成后将在这里展示。</p></div>
       </article>
     </div>
   </section>
