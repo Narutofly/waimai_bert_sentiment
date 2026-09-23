@@ -4,7 +4,6 @@ from pathlib import Path
 from training.model_train import train
 from training.model_eval import evaluate
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.append(str(PROJECT_ROOT))
 
