@@ -1,5 +1,7 @@
 logs/
 model/
+# 预处理产物：由 run_pipeline.py 的数据准备步骤从 data/raw/ 再生，属派生产物不入库
+data/pre/
 
 # VS Code 本地设置
 /.vscode

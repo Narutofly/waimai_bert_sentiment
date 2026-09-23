@@ -8,26 +8,37 @@
 
 ## 当前进度
 
-- 已准备 `data/raw/` 下的训练集、验证集、测试集，以及本地 BERT 基座和标签文件。
-- `training/config.py` 已定义数据与模型路径。
-- `training/dataset.py` 尚未实现数据读取与编码；`train()` 仍是空函数（成员 3、成员 4）。
-- `training/model_eval.py` 已实现**全量测试集评估**：准确率、各类别 Precision/Recall/F1、宏平均 F1、
-  混淆矩阵，并记录模型版本、数据版本、运行设备与推理耗时，整理典型误判（成员 5）。
-- `run_pipeline.py` 已接通数据准备、训练、评估三步，每步验证产物之后才报告完成，退出码区分完成/失败/跳过。
-  数据准备与训练因尚未实现，运行时会如实报到「跳过」（成员 3、成员 4）。
-- `app/`、`common/` 目前仅有空的 `__init__.py`；`frontend/` 为空目录。
-- 前端页面、后端接口、模型训练均待开发。**评估逻辑已就绪，但目前还没有可评估的模型**
-  （`model/ft_bert_dir/` 不存在），因此仓库里还没有任何真实评估指标，页面也无法调用真实模型。
+- `data/raw/` 下的训练集（9575 条）、验证集（1197 条）、测试集（1197 条）已就绪，
+  标签为 `0`=差评、`1`=好评（成员 3）。
+- `common/preprocess.py` 已实现共享清洗函数 `clean_text_for_bert`；`training/dataset.py` 的
+  `load_corpus` 与 `WaimaiDataset` 已实现读取、清洗与编码（成员 3、成员 4）。
+- `training/model_train.py` 的 `train()` 已实现 BERT 微调、每轮验证与模型导出（成员 4）。
+  **本机缺少基座模型 `model/google-bert/bert-base-chinese/`，因此训练当前跑不起来**，
+  流水线会如实报「跳过」而不是失败。
+- `training/model_eval.py` 已实现**全量测试集评估**：准确率、各类别 Precision/Recall/F1、
+  宏平均 F1、加权 F1、混淆矩阵，以及全部误判的整理与典型误判口径标注（成员 5）。
+  版本指纹、耗时明细与 `report.md`/`metrics.json` 落盘**尚未实现**（见「已知限制」）。
+- `run_pipeline.py` 已接通数据准备、训练、评估三步，每步验证产物之后才报告完成，
+  退出码区分完成（0）/ 失败（1）/ 跳过（3）。
+- `app/` 已具备应用工厂、环境配置、模型懒加载扩展与四个推理接口（成员 2）。
+- **仓库里已有真实评估指标**：在本地已有的 `model/ft_bert_dir/`（不纳入 Git）上跑全量 1197 条，
+  准确率 90.56%、宏平均 F1 0.8940、误判 113 条。该指标由脚本产出，不手工填写。
+- `frontend/` 仍为空目录，页面待开发；后端尚无 `wsgi.py` 启动入口。
 
 ## 项目结构
 
 ```text
 .
 ├── app/                         # 后端开发目录
-│   └── __init__.py
-├── common/                      # 共享预处理逻辑开发目录
-│   └── __init__.py
+│   ├── __init__.py              # 应用工厂与全局错误处理
+│   ├── config.py                # 多环境配置（模型与标签文件路径）
+│   ├── extensions.py            # 模型与分词器的线程安全懒加载扩展
+│   └── prediction.py            # /api/v1 推理接口
+├── common/                      # 共享预处理逻辑
+│   ├── __init__.py
+│   └── preprocess.py            # clean_text_for_bert，训练与推理共用
 ├── data/
+│   ├── pre/                     # 预处理产物，由数据准备步骤再生，不纳入 Git
 │   └── raw/
 │       ├── train.csv            # 训练集
 │       ├── valid.csv            # 验证集
@@ -55,7 +66,9 @@
 └── README.md
 ```
 
-`data/pre/` 与 `model/ft_bert_dir/` 已在配置中预留，分别用于预处理结果和微调后的模型，由对应功能实现时按需创建，当前尚不存在。`logs/eval/<run_id>/` 由评估步骤自动创建，不需要手工准备。
+`data/pre/`、`model/ft_bert_dir/` 与 `logs/eval/<run_id>/` 都是**本地产物，不纳入 Git**。
+`data/pre/` 由数据准备步骤自动创建，`logs/eval/<run_id>/` 由评估步骤自动创建，都不需要手工准备；
+`model/ft_bert_dir/` 由成员 4 训练产出，干净检出上没有它时评估会如实报「跳过」。
 
 ## 五人分工
 
@@ -177,8 +190,8 @@
 3. **模型交付：** 成员 4 使用成员 3 的数据集训练并导出模型，成员 5 独立评估。
 4. **完整联调：** 成员 2 接入模型，成员 1 接入真实接口，成员 5 组织验收；各成员修复自己模块的问题。
 
-评估步骤（成员 5）已可运行，但**当前没有可评估的模型，因此还没有任何真实指标**。评估要真正跑出结果，
-依赖成员 3 交付 `common/preprocess.py`、成员 4 交付 `model/ft_bert_dir/`，缺任一项都会以明确的中文错误失败。
+评估步骤（成员 5）已可运行。它依赖成员 3 的 `common/preprocess.py` 与成员 4 的 `model/ft_bert_dir/`：
+清洗模块缺失属于真实失败（退出码 1），模型目录缺失属于依赖缺失，报「跳过」（退出码 3）。
 
 ## 环境与运行说明
 
@@ -214,13 +227,22 @@ python -m venv .venv
 .\.venv\Scripts\python.exe run_pipeline.py --eval-only
 
 # 复用已有预处理结果，只重跑训练与评估
-.\.venv\Scripts\python.exe run_pipeline.py --skip-train
+.\.venv\Scripts\python.exe run_pipeline.py --skip-prep
 
-# 单独跑评估（等价于 --eval-only），可临时覆盖批大小与最大长度
+# 单独跑评估（覆盖范围等价于 --eval-only），可临时覆盖批大小与最大长度
 .\.venv\Scripts\python.exe -m training.model_eval --batch-size 64 --max-length 64
 ```
 
-当前数据准备（成员 3）与训练（成员 4）尚未实现，直接运行 `run_pipeline.py` 会在第一步如实报到「跳过」并以退出码 3 结束，不会伪造任何成功输出。
+`--eval-only` 与 `--skip-prep` 同时给出时以 `--eval-only` 为准。`max_length` 默认 32，
+与 `WaimaiDataset(max_len=32)` 及在线推理一致；改大只会把截断点推后，离线指标与线上口径将不再一致，
+除有明确理由外不要改。
+
+退出码说明：只要有任一步被跳过（含 `--eval-only`、`--skip-prep` 这类**主动跳过**），
+`run_pipeline.py` 就返回 3 —— 它回答的是「整条流水线是否真的全部跑完」，而不是「这次请求的工作是否做完了」。
+若只关心评估本身是否成功，用 `python -m training.model_eval`：它只跑评估、不跳过任何步骤，返回 0/1。
+
+在当前机器上直接运行 `run_pipeline.py`：数据准备完成 → 训练因缺少基座模型报「跳过」→ 评估完成，
+最终以退出码 3 结束，不会伪造任何成功输出。
 
 在没有模型的机器上，可以先用单元测试验证报告渲染与误判整理逻辑（不需要 torch）：
 
@@ -262,6 +284,12 @@ python -m venv .venv
 | 运行设备 | 设备类型、CUDA 是否可用、GPU 名称、各依赖版本、`max_length` |
 | 推理耗时 | 清洗、分词、前向推理、端到端各自的每样本耗时与吞吐；单批耗时的 mean/p50/p90/p95/p99/max，并保留逐批原始值 |
 | 典型误判 | 全部误判明细 + 按多种口径挑出的典型样本 |
+
+上表是报告的**目标口径**，不是当前已具备的能力。目前已实现并在运行时打印的是：准确率、
+各类别 Precision/Recall/F1 与支持数、宏平均 F1、加权 F1、混淆矩阵，以及全部误判的明细与
+典型误判口径标注。**尚未实现**的是：Cohen's kappa、模型与数据各类指纹（`version_id`、
+sha256）、逐批耗时明细，以及三个产物文件（`metrics.json`/`report.md`/`misclassifications.json`）
+的落盘 —— 评估跑完只在终端输出，不写 `logs/eval/`。因此 `docs/eval_report.md` 仍无法定稿。
 
 耗时口径：先跑 3 个批次预热并丢弃结果，再全量正式计时，以排除 CUDA 首次调用开销；
 评估使用 `padding='max_length'`，保证每次运行张量形状一致、耗时可比。

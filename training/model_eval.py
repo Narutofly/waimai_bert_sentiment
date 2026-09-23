@@ -3,8 +3,10 @@
 报告渲染与误判整理只接收普通 list/dict，不需要模型与 GPU，
 由 tests/test_model_eval_report.py 覆盖；evaluate() 才需要真实模型。
 """
+import argparse
 import hashlib
 import importlib
+import sys
 import time
 import unicodedata
 from pathlib import Path
@@ -12,14 +14,27 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score, precision_recall_fscore_support
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 from common.preprocess import clean_text_for_bert
 from training.config import Config
 
-TRIALS = 128
-SAMPLES = 16
+# README 要求全量评估测试集，不抽样、不 shuffle，故此处没有抽样次数的概念
+DEFAULT_BATCH_SIZE = 64
+
+# 与 WaimaiDataset(max_len=32) 和 app/prediction.py 的 max_length=32 对齐。
+# 默认值取 32，改大只会把长文本截断点推后，与训练和线上推理的口径就不再一致。
+DEFAULT_MAX_LENGTH = 32
+
+# 类别数量，与训练时 num_labels=2 一致
+EXPECTED_LABELS = 2
+
+# 标签文件与占位名。README「已知限制」明确要求：标签文件缺失时用占位名并告警，
+# **不默认推断 0=差评、1=好评** —— 万一成员 4 导出的标签顺序相反，整张指标表会
+# 张冠李戴，而错标签比占位名危险得多。该文件位于 model/ 目录，不纳入 Git。
+LABELS_FILE = Config.model_file.parent / 'thy_labels.txt'
+LABEL_FALLBACK_NAMES = ('类别0', '类别1')
 
 # 典型误判口径的置信度阈值。README 规定了两个口径及各自上限，
 # 但未约定阈值取值，此处约定：>= HIGH 视为「模型很自信却错了」，
@@ -236,32 +251,86 @@ def _require_prerequisites():
         raise EvalError('MODEL_DIR_MISSING', f'未找到微调模型目录：{Config.model_file}')
 
 
-def evaluate():
-    """评估模型"""
+def load_label_names() -> tuple:
+    """读取类别标签，缺失或数量不符时退回占位名并告警。
+
+    不猜「0=差评、1=好评」：占位名只是不好看，猜错标签会让整张指标表失去意义。
+    """
+    if not LABELS_FILE.is_file():
+        print(f'警告：未找到标签文件 {LABELS_FILE}，本次使用占位名 '
+              f'{"、".join(LABEL_FALLBACK_NAMES)}；标签含义请以成员 4 导出的标签文件为准')
+        return LABEL_FALLBACK_NAMES
+
+    names = tuple(
+        line.strip()
+        for line in LABELS_FILE.read_text(encoding='utf-8').splitlines()
+        if line.strip()
+    )
+    if len(names) != EXPECTED_LABELS:
+        print(f'警告：{LABELS_FILE} 有 {len(names)} 个标签，期望 {EXPECTED_LABELS} 个，'
+              f'本次使用占位名 {"、".join(LABEL_FALLBACK_NAMES)}')
+        return LABEL_FALLBACK_NAMES
+    return names
+
+
+def _build_metrics(y_true, y_pred, label_names) -> dict:
+    """按 README 口径计算各类别指标，以及宏平均 F1 与加权 F1。"""
+    label_ids = list(range(len(label_names)))
+    precision, recall, f1, support = precision_recall_fscore_support(
+        y_true, y_pred, labels=label_ids, zero_division=0,
+    )
+    return {
+        'per_class': [
+            {
+                'label_id': label_id,
+                'label': label_names[label_id],
+                'support': _to_py(support[label_id]),
+                'precision': float(precision[label_id]),
+                'recall': float(recall[label_id]),
+                'f1': float(f1[label_id]),
+            }
+            for label_id in label_ids
+        ],
+        # README 只约定汇总宏平均 F1 与加权 F1，其余汇总列由渲染层留空
+        'macro_f1': float(f1_score(y_true, y_pred, average='macro', zero_division=0)),
+        'weighted_f1': float(
+            f1_score(y_true, y_pred, average='weighted', zero_division=0)
+        ),
+    }
+
+
+def evaluate(batch_size: int = DEFAULT_BATCH_SIZE,
+             max_length: int = DEFAULT_MAX_LENGTH) -> dict:
+    """全量评估测试集，打印指标表并返回评估摘要。
+
+    口径由 README「评估口径」一节约定：按 test.csv 原始顺序全量前向，
+    不抽样、不 shuffle。早期版本的「随机抽 16 条 × 128 次」已整体替换。
+    """
     _require_prerequisites()
+    label_names = load_label_names()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # 加载测试数据
-    test_df = pd.read_csv(Config.test_raw_file, sep=',', names=['labels', 'text'])
-    # 加载训练好的分词器和模型
+
+    # header=None：test.csv 没有表头。不指定的话 pandas 会把第一条真实样本
+    # 当成列名，既少评一条，又让误判的 line_number 整体错位一行。
+    test_df = pd.read_csv(
+        Config.test_raw_file, sep=',', names=['labels', 'text'], header=None,
+    )
+
     tokenizer = AutoTokenizer.from_pretrained(Config.model_file)
     model = AutoModelForSequenceClassification.from_pretrained(Config.model_file)
     model.to(device)
-    # 开启评估模式
     model.eval()
 
-    total_accuracy, total_duration = 0.0, 0.0
-    for _ in range(TRIALS):
-        samples = test_df.sample(n=SAMPLES)
-        x_raw, y_test = samples['text'], samples['labels']
+    x_test = list(map(clean_text_for_bert, test_df['text']))
+    y_true = test_df['labels'].to_numpy()
 
-        start = time.perf_counter()
-        # 数据预处理
-        x_test = list(map(clean_text_for_bert, x_raw))
-        # 分词
+    prediction_batches, probability_batches, length_batches = [], [], []
+    start = time.perf_counter()
+    for offset in range(0, len(x_test), batch_size):
         inputs = tokenizer(
-            text=x_test,
-            return_tensors="pt",
-            max_length=32,
+            text=x_test[offset:offset + batch_size],
+            return_tensors='pt',
+            max_length=max_length,
             truncation=True,
             padding='max_length',
         )
@@ -269,12 +338,81 @@ def evaluate():
         attention_mask = inputs['attention_mask'].to(device)
         # 模型推理,阻断计算图
         with torch.inference_mode():
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-        end = time.perf_counter()
+            logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
+        probabilities = torch.softmax(logits, dim=-1).cpu().numpy()
+        prediction_batches.append(probabilities.argmax(axis=-1))
+        probability_batches.append(probabilities)
+        # attention_mask 中 1 的个数即真实 token 数，用于最长 / 最短文本误判口径
+        length_batches.append(attention_mask.sum(dim=1).cpu().numpy())
+    duration = time.perf_counter() - start
 
-        y_pred = torch.argmax(outputs.logits,dim=-1).cpu().numpy()
-        total_accuracy += accuracy_score(y_test, y_pred)
-        total_duration += end - start
+    y_pred = np.concatenate(prediction_batches)
+    probabilities = np.concatenate(probability_batches)
+    token_lengths = np.concatenate(length_batches)
 
-    print(f'Accuracy: {total_accuracy / TRIALS:.2%}')
+    matrix = [[0] * len(label_names) for _ in label_names]
+    for true_id, pred_id in zip(y_true, y_pred):
+        matrix[int(true_id)][int(pred_id)] += 1
+
+    metrics = _build_metrics(y_true, y_pred, label_names)
+    misclassifications = _mine_misclassifications(
+        test_df, y_true, y_pred, probabilities,
+        label_names, token_lengths, token_lengths >= max_length,
+    )
+
+    print(f'评估样本 {len(y_true)} 条（全量，按 test.csv 原始顺序，未抽样）')
+    print(f'批大小 {batch_size}，最大长度 {max_length}，前向耗时 {duration:.2f}s')
+    print()
+    print(_render_confusion_matrix(matrix, label_names))
+    print()
+    print(_render_metrics_table(metrics))
+    print()
+    print(f'误判 {len(misclassifications)} 条；明细整理逻辑已就绪，'
+          '报告落盘（report.md / metrics.json）尚未实现')
+
+    return {
+        'total': int(len(y_true)),
+        'accuracy': float(accuracy_score(y_true, y_pred)),
+        'macro_f1': metrics['macro_f1'],
+        'weighted_f1': metrics['weighted_f1'],
+        'per_class': metrics['per_class'],
+        'confusion_matrix': matrix,
+        'misclassifications': misclassifications,
+        'batch_size': batch_size,
+        'max_length': max_length,
+        'duration_seconds': round(duration, 3),
+    }
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description='全量评估已交付的微调模型（等价于 run_pipeline.py --eval-only）',
+    )
+    parser.add_argument(
+        '--batch-size', type=int, default=DEFAULT_BATCH_SIZE,
+        help=f'评估批大小（默认 {DEFAULT_BATCH_SIZE}）',
+    )
+    parser.add_argument(
+        '--max-length', type=int, default=DEFAULT_MAX_LENGTH,
+        help=f'最大序列长度（默认 {DEFAULT_MAX_LENGTH}，与训练和在线推理一致）',
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None) -> int:
+    """独立评估入口。退出码与 run_pipeline.py 一致：0 完成 / 1 失败 / 3 跳过。"""
+    args = parse_args(argv)
+    try:
+        evaluate(batch_size=args.batch_size, max_length=args.max_length)
+    except EvalError as error:
+        print(f'跳过：{error}')
+        return 3
+    except Exception as error:  # noqa: BLE001 —— 兜底归类为真实失败
+        print(f'失败：{type(error).__name__}: {error}')
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
     print(f'Duration = {total_duration / TRIALS:.3f}s')
