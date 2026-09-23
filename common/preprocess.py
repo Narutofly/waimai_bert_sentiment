@@ -1,20 +1,14 @@
 """
 preprocess - 文本预处理（离线训练与在线推理共用）
 
-单条文本级处理：正则清洗 → jieba 分词 → 去停用词
+单条文本级处理：HTML 清洗 → Unicode 规范化 → 正则清理
 
 Author: 骆昊
 Version: 0.0.1
 """
 import html
 import re
-
-import jieba
-import logging
-
 import unicodedata
-
-jieba.setLogLevel(logging.ERROR)
 
 
 SPACE_PATTERN = re.compile(r'[\s\u3000]+')
