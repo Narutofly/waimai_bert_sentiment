@@ -4,49 +4,78 @@
 
 项目仓库：[Gitee / waimai_bert_sentiment](https://gitee.com/whoamber/waimai_bert_sentiment)。
 
-当前处于团队开发骨架阶段。以下分工基于现有目录，不额外拆分项目架构；成员 1～5 可替换为实际姓名。
+项目已进入前后端联调阶段：后端可加载微调模型提供推理接口，前端页面可调用真实接口展示结果。以下分工基于现有目录，不额外拆分项目架构；成员 1～5 可替换为实际姓名。
 
 ## 当前进度
 
-- 已准备 `data/raw/` 下的训练集、验证集、测试集，以及本地 BERT 基座和标签文件。
-- `training/config.py` 已定义数据与模型路径。
-- `training/dataset.py` 尚未实现数据读取与编码；`train()`、`evaluate()` 目前为空函数。
-- `app/`、`common/` 目前仅有空的 `__init__.py`；`frontend/` 为空目录。
-- `run_pipeline.py` 保留三个阶段的入口，但数据准备尚未接入、`train()` 调用被注释，`evaluate()` 仍为空函数。
-- 前端页面、后端接口、模型训练、验证和评估均待开发，目前没有可用的情感分析服务。
+已完成：
+
+- `data/raw/` 下三个 CSV 就绪，共 11,969 条：训练集 9,575、验证集 1,197、测试集 1,197；标签为差评 `0` / 好评 `1`，比例约 2:1，无缺失文本，各集合内部无重复样本。
+- `common/preprocess.py` 提供训练与推理共用的清洗函数 `clean_text_for_bert`（HTML 标签、Emoji、控制字符清理与 Unicode 归一化）。
+- `training/dataset.py` 完成语料读取与分词编码；`training/model_train.py` 完成 BERT 微调（冻结 embedding 与前 3 层），逐轮打印验证集准确率，并把模型与分词器导出到 `model/ft_bert_dir/`。
+- `app/` 提供 Flask 应用工厂与 4 个推理接口，模型与分词器延迟加载并在进程内复用；启动入口为 `wsgi.py`。
+- `frontend/` 为 Vue 3 + Vite 页面，支持文本输入与 TXT 导入、批量分析、筛选排序、置信度分布和 CSV 导出。
+- 前后端已联通：页面可调用真实模型并展示标签与置信度。
+
+尚未完成：
+
+- `training/model_eval.py` 的 `evaluate()` 仍为空函数，尚无测试集准确率、Precision/Recall/F1 和混淆矩阵。
+- `run_pipeline.py` 第 2 步的评估尚未接入。
+- `requirements.txt` 未列出 PyTorch、Transformers、jieba（见「环境与运行说明」）。
+- 前端模型报告页期望的 `GET /api/v1/model-info` 尚未实现，页面该区域显示「待接入」。
+- 前端「导入 TXT」在浏览器本地读取后调用 `/api/v1/classify`，后端 `classify_from_file` 接口暂无调用方。
 
 ## 项目结构
 
 ```text
 .
-├── app/                         # 后端开发目录
-│   └── __init__.py
-├── common/                      # 共享预处理逻辑开发目录
-│   └── __init__.py
+├── app/                         # 后端：应用工厂、配置、扩展与推理接口
+│   ├── __init__.py              # create_app 工厂、CORS 与全局异常处理
+│   ├── config.py                # 分环境配置、模型与标签文件路径
+│   ├── extensions.py            # 分类器单例扩展，模型/分词器/标签延迟加载
+│   └── prediction.py            # /api/v1 蓝图与预测接口
+├── common/                      # 训练与推理共用的预处理
+│   ├── __init__.py
+│   └── preprocess.py            # clean_text_for_bert 文本清洗
 ├── data/
-│   └── raw/
-│       ├── train.csv            # 训练集
-│       ├── valid.csv            # 验证集
-│       └── test.csv             # 测试集
-├── frontend/                    # 前端开发目录，当前为空
+│   └── raw/                     # UTF-8、无表头，每行 标签,"评价文本"
+│       ├── train.csv            # 训练集 9,575 条
+│       ├── valid.csv            # 验证集 1,197 条
+│       └── test.csv             # 测试集 1,197 条
+├── frontend/                    # 前端：Vue 3 + Vite
+│   ├── src/
+│   │   ├── App.vue              # 页面框架、状态汇总与接口调用
+│   │   ├── main.js
+│   │   ├── style.css
+│   │   ├── components/          # AnalyzerCard、ReviewFeed、TopicPanel、ModelReport、InsightPanel、AppIcon
+│   │   └── services/
+│   │       └── sentiment.js     # 接口封装与演示模式（mock）开关
+│   ├── .env.example             # 接口地址与 mock 开关示例
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js           # 5173 端口与 /api 代理
 ├── model/                       # 本地模型资源，不纳入 Git
 │   ├── google-bert/
 │   │   └── bert-base-chinese/   # 预训练模型与分词器
+│   ├── ft_bert_dir/             # 微调导出的模型与分词器（约 400MB）
 │   └── thy_labels.txt           # 类别编号与中文标签映射
 ├── training/
 │   ├── __init__.py
 │   ├── config.py                # 数据与模型路径配置
-│   ├── dataset.py               # 数据集读取、清洗与编码
+│   ├── dataset.py               # 语料读取、清洗与分词编码
 │   ├── model_train.py           # 模型训练及训练期间验证
-│   └── model_eval.py            # 独立测试集评估
-├── requirements.txt            # Python 依赖
-├── run_pipeline.py             # 离线流程入口
+│   └── model_eval.py            # 独立测试集评估（待实现）
+├── requirements.txt             # Python 依赖（待补齐 PyTorch、Transformers、jieba）
+├── run_pipeline.py              # 离线流程入口
+├── wsgi.py                      # 后端启动入口
 └── README.md
 ```
 
-`data/pre/` 与 `model/ft_bert_dir/` 已在配置中预留，分别用于预处理结果和微调后的模型，由对应功能实现时按需创建，当前尚不存在。
+`data/pre/` 与 `model/ft_bert_dir/` 已在 `training/config.py` 中预留。目前 `model/ft_bert_dir/` 已存放微调导出的模型与分词器；`data/pre/` 目录尚不存在，其中配置的 `tmf_train.txt`、`tmf_valid.txt` 也还没有任何代码读取。
 
 ## 五人分工
+
+以下是立项时的任务划分，用于说明各成员的负责范围；各部分的完成情况见上方「当前进度」。
 
 | 成员 | 岗位 | 主要负责范围 | 核心交付物 |
 | --- | --- | --- | --- |
@@ -128,16 +157,16 @@
 - 后端与离线评估必须使用同一版本的模型、标签、清洗及编码配置。
 - `training/config.py` 由成员 4 主维护；其他成员需要更改公共配置时先同步接口影响。
 
-### 前后端接口（待实现的协作约定）
+### 前后端接口（已实现）
 
-以下是开发目标，当前骨架尚未提供这些接口。
+下列接口位于 `app/prediction.py`，均已完成前后端联调。
 
 | 方法 | 路径 | 请求与用途 |
 | --- | --- | --- |
-| GET | `/api/v1/` | 检查服务状态，并区分模型是否就绪 |
+| GET | `/api/v1/` | 服务存活检查，返回 `{"code":200,"message":"API v1"}`；不包含模型是否就绪的信息 |
 | GET | `/api/v1/labels` | 获取按类别编号排序的标签列表 |
 | POST | `/api/v1/classify` | JSON 的 `text` 字段为字符串或字符串数组 |
-| POST | `/api/v1/classify_from_file` | 表单字段 `text_file` 上传 UTF-8 TXT，每行一条评价 |
+| POST | `/api/v1/classify_from_file` | 表单字段 `text_file` 上传 UTF-8 TXT，每行一条评价（前端暂未调用） |
 
 文本请求示例：
 
@@ -145,19 +174,21 @@
 {"text": ["味道很好，配送及时。", "饭菜已经凉了。"]}
 ```
 
-目标响应示例（仅表示格式，不是真实评测结果）：
+接口实测输出示例（2026-09-23，使用 `model/ft_bert_dir/` 当前权重；这是推理输出，不是测试集评测指标）：
 
 ```json
 {
   "code": 200,
   "results": [
-    {"text": "味道很好，配送及时。", "label": "好评", "confidence": "95.00%", "is_certain": true},
-    {"text": "饭菜已经凉了。", "label": "差评", "confidence": "90.00%", "is_certain": true}
+    {"text": "这家外卖太好吃了，送得也快，强烈推荐", "label": "好评", "confidence": "99.82%", "is_certain": true},
+    {"text": "菜是凉的，还少了一份，太失望了", "label": "差评", "confidence": "99.78%", "is_certain": true}
   ]
 }
 ```
 
-结果顺序与输入一致。`confidence` 使用百分比字符串，`is_certain` 的阈值由成员 2 与成员 4 统一约定。错误响应使用 `code` 与 `message`，HTTP 状态码与 `code` 对齐。标签接口返回 `{"code":200,"results":["差评","好评"]}`。
+结果顺序与输入一致。`confidence` 为百分比字符串，`is_certain` 的阈值为 80%（`confidence >= 0.8`）。错误响应使用 `code` 与 `message`，HTTP 状态码与 `code` 对齐；`text` 缺失或类型不符返回 400。标签接口返回 `{"code":200,"results":["差评","好评"]}`。
+
+**尚未实现：** `GET /api/v1/model-info`——前端模型报告页期望它返回模型版本、数据集规模、四项指标、混淆矩阵与推理耗时，当前该区域显示「待接入」。
 
 ## 开发顺序
 
@@ -168,24 +199,67 @@
 
 ## 环境与运行说明
 
-Python 依赖以 `requirements.txt` 为准。项目目前列出 Flask、pandas、pytest 和 requests；PyTorch、Transformers 等模型依赖尚未列入，由成员 4 确认与团队 Python、CPU/CUDA 环境兼容的版本后补充。Python 版本与依赖组合仍需团队统一验证。
+### 依赖
 
-在项目根目录创建虚拟环境并安装当前依赖：
+`requirements.txt` 目前只列出 Flask、pandas、pytest 和 requests；**实际运行还需要 PyTorch、Transformers 和 jieba，尚未补入**，其他机器按现有 `requirements.txt` 安装无法启动服务。
+
+本机已验证可用的组合（2026-09-23 完成前后端联调）：
+
+| 依赖 | 版本 |
+| --- | --- |
+| Python | 3.12.14 |
+| Flask | 3.1.3 |
+| torch | 2.14.0+cu130 |
+| transformers | 5.17.0 |
+| jieba | 0.42.1 |
+| pandas | 3.0.5 |
+
+**待办：** 补齐 `requirements.txt` 并统一团队 Python 与 CPU/CUDA 版本；在此之前请按上表使用同一套版本另建环境（conda 或 venv 均可）。
+
+### 启动后端（127.0.0.1:8000）
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+python wsgi.py
 ```
 
-查看当前离线占位流程：
+`wsgi.py` 是后端启动入口：直接执行即启动开发服务器；模块级 `app = create_app()` 也可被生产服务器引用（如 `gunicorn -w 2 'wsgi:app' -b 0.0.0.0:8000`，本机未验证）。应用启动时会加载 `model/ft_bert_dir/` 下约 400MB 的 BERT 权重，请等待数秒后再发请求。
+
+服务是否就绪：
 
 ```powershell
-.\.venv\Scripts\python.exe run_pipeline.py
+curl.exe -s http://127.0.0.1:8000/api/v1/
+# 期望输出 {"code":200,"message":"API v1"}
 ```
 
-当前命令只输出阶段提示并调用空的评估函数，不会真正清洗数据、训练模型或生成评估结果。
+### 启动前端（127.0.0.1:5173）
 
-前端尚无 `package.json`，后端尚无服务启动入口，因此当前不能直接执行前端启动命令或 `python wsgi.py`。成员 1、2 完成功能后，由成员 5 将验证过的安装、启动与联调命令补充到本节。
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+`vite.config.js` 已将 `/api` 代理到 `http://127.0.0.1:8000`，前端无需额外处理跨域。端口被 `strictPort: true` 固定：若 5173 已被占用，`npm run dev` 会直接报 `Error: Port 5173 is already in use` 并退出（不会自动换端口），需先释放该端口。
+
+### 联调：让页面调用真实模型
+
+前端默认处于**演示模式**——`VITE_USE_MOCK` 未设置时即按 mock 处理，页面展示的是前端本地构造的示例结果，**不会请求后端**。首次联调：
+
+```powershell
+cd frontend
+copy .env.example .env
+```
+
+把 `.env` 中的 `VITE_USE_MOCK` 改为 `false`，重启 `npm run dev`。页面右上角显示「模型已连接」即表示链路已打通；点击「开始分析」后，评价明细中的标签与置信度即为 BERT 的真实推理结果。`.env` 已在 `.gitignore` 中，不会被提交。
+
+### 离线训练流程
+
+```powershell
+python run_pipeline.py
+```
+
+- 第 1 步会实际执行 `training/model_train.py` 的 `train()`：读取训练集与验证集，微调 BERT 并逐轮打印验证集准确率，最后把模型与分词器导出到 `model/ft_bert_dir/`。该步骤耗时较长。
+- 第 2 步的评估尚未接入，目前只输出阶段提示，不会生成评估结果。
 
 ## 团队协作
 
