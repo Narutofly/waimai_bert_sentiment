@@ -1,15 +1,17 @@
-"""离线训练与评估入口，业务逻辑待团队实现。"""
+import sys
+from pathlib import Path
 
-from training.model_train import train
-from training.model_eval import evaluate
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+sys.path.append(str(PROJECT_ROOT))
 
 
 def main():
-    # TODO: 数据准备。
-    # TODO: 实现训练与验证后启用 train()。
-    # TODO: 实现独立测试集评估后启用 evaluate()。
-    print("初始化骨架：请完善 training/ 中的训练、验证与评估 TODO。")
-
+    """离线训练流水线程序入口"""
+    print("\n=== [Step 1/2] 开始训练和导出文本分类模型 ===")
+    # Todo: 执行模型训练和导出
+    print("\n=== [Step 2/2] 启动服务之前对模型进行评估 ===")
+    # Todo: 执行模型推理和评估
 
 if __name__ == "__main__":
     main()

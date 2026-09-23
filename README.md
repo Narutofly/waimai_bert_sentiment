@@ -1,87 +1,196 @@
-# 外卖评价情感分析 · 初始化版本
+# 外卖评价情感分析
 
-参照 `E:/project/waimai-bert-sentiment`，保留原项目目录与文件组织，
-清除前端、后端推理和模型训练、验证、评估的业务实现，只保留基础入口和 TODO，供团队开发。
-原项目误拼的 `traning` 更正为 `training`。不包含真实数据、模型权重或原项目 Git 历史。
+基于中文 BERT 的外卖评价二分类项目，目标是将评价识别为「差评」或「好评」，并通过后端接口和前端页面展示分析结果。
 
-## 原项目结构
+项目仓库：[Gitee / waimai_bert_sentiment](https://gitee.com/whoamber/waimai_bert_sentiment)。
+
+当前处于团队开发骨架阶段。以下分工基于现有目录，不额外拆分项目架构；成员 1～5 可替换为实际姓名。
+
+## 当前进度
+
+- 已准备 `data/raw/` 下的训练集、验证集、测试集，以及本地 BERT 基座和标签文件。
+- `training/config.py` 已定义数据与模型路径。
+- `training/dataset.py` 尚未实现数据读取与编码；`train()`、`evaluate()` 目前为空函数。
+- `app/`、`common/` 目前仅有空的 `__init__.py`；`frontend/` 为空目录。
+- `run_pipeline.py` 保留三个阶段的入口，但数据准备尚未接入、`train()` 调用被注释，`evaluate()` 仍为空函数。
+- 前端页面、后端接口、模型训练、验证和评估均待开发，目前没有可用的情感分析服务。
+
+## 项目结构
 
 ```text
 .
-├── app/                     # 后端 Flask
-│   ├── __init__.py          # 应用工厂
-│   ├── config.py            # 后端配置
-│   ├── extensions.py        # 模型加载与推理 TODO
-│   └── prediction.py        # API 路由 TODO
-├── common/                  # 共享文本预处理 TODO
+├── app/                         # 后端开发目录
+│   └── __init__.py
+├── common/                      # 共享预处理逻辑开发目录
+│   └── __init__.py
 ├── data/
-│   ├── raw/                 # 训练、验证、测试数据
-│   └── pre/                 # 预处理数据
-├── frontend/                # Vue 3 + Vite 前端
-│   └── src/
-│       ├── components/      # InputPanel、ResultsPanel、AppIcon 占位
-│       ├── composables/     # useAnalysis 状态管理 TODO
-│       ├── App.vue          # 页面入口
-│       ├── api.js           # 接口请求 TODO
-│       ├── main.js          # Vue 启动入口
-│       └── style.css        # 基础样式
-├── model/                   # 本地模型及标签，不提交实际文件
-├── output/                  # 运行产物，不提交实际文件
-├── training/                 # 模型训练与验证（修正原目录拼写）
+│   └── raw/
+│       ├── train.csv            # 训练集
+│       ├── valid.csv            # 验证集
+│       └── test.csv             # 测试集
+├── frontend/                    # 前端开发目录，当前为空
+├── model/                       # 本地模型资源，不纳入 Git
+│   ├── google-bert/
+│   │   └── bert-base-chinese/   # 预训练模型与分词器
+│   └── thy_labels.txt           # 类别编号与中文标签映射
+├── training/
 │   ├── __init__.py
-│   ├── config.py            # 数据和模型路径
-│   ├── dataset.py           # 数据读取与编码 TODO
-│   ├── model_train.py       # 训练及验证 TODO
-│   └── model_eval.py        # 测试集评估 TODO
-├── requirements.txt         # 最小后端依赖
-├── run_pipeline.py          # 离线入口
-└── wsgi.py                  # 后端入口
+│   ├── config.py                # 数据与模型路径配置
+│   ├── dataset.py               # 数据集读取、清洗与编码
+│   ├── model_train.py           # 模型训练及训练期间验证
+│   └── model_eval.py            # 独立测试集评估
+├── requirements.txt            # Python 依赖
+├── run_pipeline.py             # 离线流程入口
+└── README.md
 ```
 
-## 启动
+`data/pre/` 与 `model/ft_bert_dir/` 已在配置中预留，分别用于预处理结果和微调后的模型，由对应功能实现时按需创建，当前尚不存在。
 
-后端不需要下载模型即可启动。项目根目录执行：
+## 五人分工
+
+| 成员 | 岗位 | 主要负责范围 | 核心交付物 |
+| --- | --- | --- | --- |
+| 成员 1 | 前端开发 | `frontend/` | Vue 3 页面、文本与文件输入、结果展示、接口联调 |
+| 成员 2 | 后端开发 | `app/` | Flask 应用、模型加载、推理接口、参数校验与错误处理 |
+| 成员 3 | 数据处理 | `common/`、`training/dataset.py`、`data/` | 数据检查、共享清洗函数、训练与评估使用的数据集 |
+| 成员 4 | 模型训练 | `training/model_train.py`、`training/config.py` | BERT 微调、每轮验证、最佳模型及分词器导出 |
+| 成员 5 | 模型评估与集成 | `training/model_eval.py`、`run_pipeline.py`、`README.md` | 测试集评估报告、完整离线流程、联调与验收记录 |
+
+### 成员 1：前端开发
+
+- 在 `frontend/` 内初始化 Vue 3 + Vite 工程，补充依赖清单与启动命令。
+- 实现单条/多条评价输入、UTF-8 TXT 文件上传与结果展示。
+- 展示原始文本、预测标签、置信度；处理加载中、空结果、请求失败等状态。
+- 按下方接口约定与成员 2 联调；筛选和 CSV 导出可在基本流程完成后补充。
+
+**验收标准：** 页面可独立启动，文本和文件两条流程均可调用真实接口，错误信息清楚可见。
+
+### 成员 2：后端开发
+
+- 在 `app/` 内实现 Flask 应用工厂、配置、路由和推理服务，补充实际启动入口与命令。
+- 加载成员 4 交付的模型和分词器，复用已加载对象，正确设置设备及推理模式。
+- 复用成员 3 提供的文本清洗函数，按模型约定编码输入并输出标签和置信度。
+- 实现文本、文件类型与编码校验，统一错误响应，并与成员 1 确定批量条数和上传大小限制。
+
+**验收标准：** 约定接口可调用；异常输入有明确响应；接口预测与离线推理在同一输入和配置下保持一致。
+
+### 成员 3：数据处理
+
+- 检查三个 CSV 的格式、缺失值、重复样本、标签范围和类别分布，记录各集合样本数。
+- 检查训练集、验证集和测试集之间的重复样本，防止数据泄漏；调整已有划分时记录原因和版本。
+- 在 `common/` 内实现统一清洗函数，在 `training/dataset.py` 中实现 CSV 读取、分词编码和数据集封装。
+- 与成员 4 约定批次字段、最大长度、截断与填充方式；向成员 2 提供相同的清洗规则。
+
+**验收标准：** 数据可稳定读取与编码；标签和文本正确对应；数据统计、划分规则及清洗边界样例可复核。
+
+### 成员 4：模型训练
+
+- 在 `training/config.py` 中集中维护路径、随机种子、学习率、批大小、训练轮数和最大输入长度等配置。
+- 在 `training/model_train.py` 中实现 BERT 微调，记录训练损失与验证指标。
+- 每轮在验证集上检查效果，使用事先约定的指标选择最佳模型；根据需要实现早停。
+- 将模型与分词器完整导出至 `model/ft_bert_dir/`，核对类别映射，并记录训练配置和数据版本。
+
+**验收标准：** 可按记录复现训练流程；导出模型可被成员 2 和成员 5 加载；模型选择只使用验证集。
+
+### 成员 5：模型评估与集成
+
+- 在 `training/model_eval.py` 中实现完整测试集评估，输出准确率、各类别 Precision/Recall/F1、宏平均 F1 和混淆矩阵。
+- 记录模型版本、数据版本、运行设备与推理耗时，整理典型误判；不使用测试集反复调参。
+- 接通 `run_pipeline.py` 的数据准备、训练及评估步骤，确保每一步在实际完成后才报告成功。
+- 组织前后端与模型联调，汇总正常输入、空输入、文件编码错误及批量输入等验收结果，更新 README。
+
+**验收标准：** 离线流程可执行；评估结果可复核；页面到真实模型的完整链路可演示，问题有记录和负责人。
+
+## 模块交接约定
+
+### 数据与标签
+
+现有 CSV 使用 UTF-8、无表头，每行格式为 `标签,评价文本`。包含逗号的文本按标准 CSV 引号规则读取，不直接用字符串逗号分割。
+
+```csv
+0,"送得太慢，饭菜都凉了。"
+1,"味道很好，配送也及时。"
+```
+
+`model/thy_labels.txt` 当前顺序为：
+
+```text
+差评
+好评
+```
+
+因此 `0 = 差评`、`1 = 好评`。成员 3、4、2、5 必须保持同一映射；训练集用于学习参数，验证集用于调参与选模型，测试集用于最终评估。
+
+### 训练与推理
+
+- 成员 3 向成员 4、5 提供统一的数据集接口，向成员 2 提供共享清洗函数。
+- 成员 4 向成员 2、5 交付模型、分词器、标签映射、最大输入长度和预处理约定。
+- 后端与离线评估必须使用同一版本的模型、标签、清洗及编码配置。
+- `training/config.py` 由成员 4 主维护；其他成员需要更改公共配置时先同步接口影响。
+
+### 前后端接口（待实现的协作约定）
+
+以下是开发目标，当前骨架尚未提供这些接口。
+
+| 方法 | 路径 | 请求与用途 |
+| --- | --- | --- |
+| GET | `/api/v1/` | 检查服务状态，并区分模型是否就绪 |
+| GET | `/api/v1/labels` | 获取按类别编号排序的标签列表 |
+| POST | `/api/v1/classify` | JSON 的 `text` 字段为字符串或字符串数组 |
+| POST | `/api/v1/classify_from_file` | 表单字段 `text_file` 上传 UTF-8 TXT，每行一条评价 |
+
+文本请求示例：
+
+```json
+{"text": ["味道很好，配送及时。", "饭菜已经凉了。"]}
+```
+
+目标响应示例（仅表示格式，不是真实评测结果）：
+
+```json
+{
+  "code": 200,
+  "results": [
+    {"text": "味道很好，配送及时。", "label": "好评", "confidence": "95.00%", "is_certain": true},
+    {"text": "饭菜已经凉了。", "label": "差评", "confidence": "90.00%", "is_certain": true}
+  ]
+}
+```
+
+结果顺序与输入一致。`confidence` 使用百分比字符串，`is_certain` 的阈值由成员 2 与成员 4 统一约定。错误响应使用 `code` 与 `message`，HTTP 状态码与 `code` 对齐。标签接口返回 `{"code":200,"results":["差评","好评"]}`。
+
+## 开发顺序
+
+1. **统一约定：** 五人确认数据格式、标签映射、接口字段和各自负责范围。
+2. **并行开发：** 成员 1、2 开发页面与接口；成员 3 完成数据处理；成员 4、5 确定训练、验证和评估接口。
+3. **模型交付：** 成员 4 使用成员 3 的数据集训练并导出模型，成员 5 独立评估。
+4. **完整联调：** 成员 2 接入模型，成员 1 接入真实接口，成员 5 组织验收；各成员修复自己模块的问题。
+
+## 环境与运行说明
+
+Python 依赖以 `requirements.txt` 为准。项目目前列出 Flask、pandas、pytest 和 requests；PyTorch、Transformers 等模型依赖尚未列入，由成员 4 确认与团队 Python、CPU/CUDA 环境兼容的版本后补充。Python 版本与依赖组合仍需团队统一验证。
+
+在项目根目录创建虚拟环境并安装当前依赖：
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe wsgi.py
 ```
 
-健康检查：`http://127.0.0.1:8000/api/v1/`。
-前端建议 Node.js 22.12+，另开终端执行：
+查看当前离线占位流程：
 
 ```powershell
-cd frontend
-npm.cmd ci
-npm.cmd run dev
+.\.venv\Scripts\python.exe run_pipeline.py
 ```
 
-访问 `http://127.0.0.1:5173`，当前只有初始化占位页面。
-在根目录执行 `python run_pipeline.py` 只显示 TODO 提示，不启动训练。
-模型开发需要的 PyTorch、Transformers 等依赖由负责人按环境补充到 requirements.txt。
+当前命令只输出阶段提示并调用空的评估函数，不会真正清洗数据、训练模型或生成评估结果。
 
-## 团队开发约定
+前端尚无 `package.json`，后端尚无服务启动入口，因此当前不能直接执行前端启动命令或 `python wsgi.py`。成员 1、2 完成功能后，由成员 5 将验证过的安装、启动与联调命令补充到本节。
 
-前端负责 `frontend/`，后端负责 `app/`，模型负责人负责 `training/`。
-共同维护 `common/preprocess.py`，保证训练、验证、评估与推理使用相同清洗规则。
-训练期间使用验证集选择模型，最终在独立测试集上评估。
-沿用模型路径 `model/google-bert/bert-base-chinese`、`model/ft_bert_dir`，
-标签文件为 `model/thy_labels.txt`，行序必须与模型类别编号一致。
-所有文本文件使用 UTF-8，真实数据、权重、依赖目录与本地环境配置不提交 Git。
+## 团队协作
 
-| 接口 | 用途 | 当前状态 |
-| --- | --- | --- |
-| GET `/api/v1/` | 健康检查 | HTTP 200 |
-| GET `/api/v1/labels` | 标签列表 | HTTP 501，待实现 |
-| POST `/api/v1/classify` | JSON 中 text 字符串或字符串数组 | HTTP 501，待实现 |
-| POST `/api/v1/classify_from_file` | text_file 字段上传 UTF-8 TXT | HTTP 501，待实现 |
-
-推理成功响应沿用原项目的 `code`、`results`；每条结果包含
-`text`、`label`、`confidence`（百分比字符串）、`is_certain`。当前不产生任何预测结果。
-
-## Gitee
-
-`origin` 关联 [waimai_bert_sentiment](https://gitee.com/whoamber/waimai_bert_sentiment)，
-本地分支为 `main`。本次仅初始化和关联，不自动推送。
-有仓库权限的团队成员可执行 `git push -u origin main` 首次上传。
+- 从 `main` 创建自己的功能分支，例如 `feat/frontend`、`feat/backend`、`feat/data`、`feat/training`、`feat/evaluation`，通过 Gitee Pull Request 合并。
+- 每次提交聚焦一个任务，说明修改内容、交接影响和验证方式；功能负责人同步补充相关验证。
+- 涉及共享清洗、配置、标签或 API 格式的变更，先与使用方确认并同步更新文档。
+- 文本、代码和 CSV 统一使用 UTF-8。模型资源通过团队约定的位置共享，不提交权重、虚拟环境、依赖目录、缓存和本地密钥。
+- 数据集变更由成员 3 统一管理并记录版本；README 与最终联调记录由成员 5 汇总，其余成员提供本模块说明。
