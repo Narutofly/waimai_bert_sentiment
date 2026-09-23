@@ -19,7 +19,9 @@ const error = ref('')
 const search = ref('')
 const connection = ref(DEMO_MODE ? 'demo' : 'checking')
 const elapsed = ref('')
+const submittedText = ref('')
 const activeFilter = ref('all')
+const reviewOnly = ref(false)
 const activeSection = ref('top')
 const notice = ref('')
 let noticeTimer
@@ -41,7 +43,8 @@ function navigate(id) {
 }
 function filterResults(filter) {
   search.value = ''
-  activeFilter.value = filter
+  activeFilter.value = filter === 'review' ? 'all' : filter
+  reviewOnly.value = filter === 'review'
   navigate('reviews')
 }
 function updateSection() {
@@ -54,6 +57,7 @@ function updateSection() {
 watch(text, () => { error.value = '' })
 
 const lines = computed(() => text.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))
+const draftChanged = computed(() => results.value.length > 0 && lines.value.join('\n') !== submittedText.value)
 const positiveCount = computed(() => results.value.filter((item) => item.tone === 'positive').length)
 const negativeCount = computed(() => results.value.filter((item) => item.tone === 'negative').length)
 const reviewCount = computed(() => results.value.filter((item) => item.needsReview).length)
@@ -101,7 +105,9 @@ async function analyze(scroll = true) {
   const started = performance.now()
   try {
     results.value = await classifyReviews(lines.value)
+    submittedText.value = lines.value.join('\n')
     activeFilter.value = 'all'
+    reviewOnly.value = false
     search.value = ''
     elapsed.value = ((performance.now() - started) / 1000).toFixed(1)
     if (!DEMO_MODE) connection.value = 'online'
@@ -182,12 +188,12 @@ onBeforeUnmount(() => {
             <span class="orbit-center"><AppIcon name="spark" /></span>
           </div>
         </div>
-        <label class="hero-search">
+        <div class="hero-search" role="search">
           <AppIcon name="search" />
           <input v-model="search" aria-label="搜索评价" type="search" placeholder="搜一搜，顾客提到了什么？" @keydown.enter="navigate('reviews')" />
           <span>{{ results.length }} 条评价</span>
           <button type="button" @click="navigate('reviews')">搜索</button>
-        </label>
+        </div>
       </div>
     </section>
 
@@ -201,9 +207,10 @@ onBeforeUnmount(() => {
           <AnalyzerCard v-model="text" :busy="busy" :error="error" :line-count="lines.length" :demo-mode="DEMO_MODE" @analyze="analyze" />
           <InsightPanel id="insights" :summary="summary" :buckets="buckets" :busy="busy" :elapsed="elapsed" :demo-mode="DEMO_MODE" @filter="filterResults" />
         </div>
+        <div v-if="draftChanged && !busy" class="draft-reminder" role="status"><AppIcon name="info" /><span>输入已修改。看板和评价列表仍显示上一次分析结果。</span><button @click="analyze()">重新分析 <AppIcon name="arrow" /></button></div>
       </section>
 
-      <ReviewFeed v-model:search="search" v-model:active-filter="activeFilter" :results="results" :busy="busy" :demo-mode="DEMO_MODE" @export="exportCsv" />
+      <ReviewFeed v-model:search="search" v-model:active-filter="activeFilter" v-model:review-only="reviewOnly" :results="results" :busy="busy" :demo-mode="DEMO_MODE" @export="exportCsv" />
 
       <ModelReport />
     </main>

@@ -4,6 +4,11 @@ defineProps({ name: { type: String, required: true } })
 
 <template>
   <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <template v-if="name === 'close'"><path d="m6 6 12 12M18 6 6 18" /></template>
+    <template v-if="name === 'copy'"><rect x="8" y="8" width="12" height="13" rx="2" /><path d="M15 8V3H3v13h5" /></template>
+    <template v-if="name === 'check'"><path d="m5 12 4 4L19 6" /></template>
+    <template v-if="name === 'info'"><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10h.01" /></template>
+    <template v-if="name === 'smile' || name === 'frown'"><circle cx="12" cy="12" r="9" /><path d="M8 9h.01M16 9h.01" /><path v-if="name === 'smile'" d="M7.5 14q4.5 6 9 0" /><path v-else d="M8 17q4-5 8 0" /></template>
     <template v-if="name === 'bubble'">
       <path d="M5.2 5.8h13.6v9.4H11l-4.7 3.4.8-3.4H5.2z" />
       <path d="M9 10.5h.01M12 10.5h.01M15 10.5h.01" />
