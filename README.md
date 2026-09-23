@@ -10,10 +10,14 @@
 
 - 已准备 `data/raw/` 下的训练集、验证集、测试集，以及本地 BERT 基座和标签文件。
 - `training/config.py` 已定义数据与模型路径。
-- `training/dataset.py` 尚未实现数据读取与编码；`train()`、`evaluate()` 目前为空函数。
+- `training/dataset.py` 尚未实现数据读取与编码；`train()` 仍是空函数（成员 3、成员 4）。
+- `training/model_eval.py` 已实现**全量测试集评估**：准确率、各类别 Precision/Recall/F1、宏平均 F1、
+  混淆矩阵，并记录模型版本、数据版本、运行设备与推理耗时，整理典型误判（成员 5）。
+- `run_pipeline.py` 已接通数据准备、训练、评估三步，每步验证产物之后才报告完成，退出码区分完成/失败/跳过。
+  数据准备与训练因尚未实现，运行时会如实报到「跳过」（成员 3、成员 4）。
 - `app/`、`common/` 目前仅有空的 `__init__.py`；`frontend/` 为空目录。
-- `run_pipeline.py` 保留三个阶段的入口，但数据准备尚未接入、`train()` 调用被注释，`evaluate()` 仍为空函数。
-- 前端页面、后端接口、模型训练、验证和评估均待开发，目前没有可用的情感分析服务。
+- 前端页面、后端接口、模型训练均待开发。**评估逻辑已就绪，但目前还没有可评估的模型**
+  （`model/ft_bert_dir/` 不存在），因此仓库里还没有任何真实评估指标，页面也无法调用真实模型。
 
 ## 项目结构
 
@@ -28,23 +32,30 @@
 │       ├── train.csv            # 训练集
 │       ├── valid.csv            # 验证集
 │       └── test.csv             # 测试集
+├── docs/
+│   └── eval_report.md           # 测试集评估定稿报告（唯一入库的评估产物）
 ├── frontend/                    # 前端开发目录，当前为空
+├── logs/                        # 运行产物，不纳入 Git
+│   └── eval/<run_id>/           # 每次评估的 metrics.json / report.md / misclassifications.json
 ├── model/                       # 本地模型资源，不纳入 Git
 │   ├── google-bert/
 │   │   └── bert-base-chinese/   # 预训练模型与分词器
 │   └── thy_labels.txt           # 类别编号与中文标签映射
+├── tests/
+│   └── test_model_eval_report.py  # 报告渲染与误判整理的单元测试（不需要模型）
 ├── training/
 │   ├── __init__.py
 │   ├── config.py                # 数据与模型路径配置
 │   ├── dataset.py               # 数据集读取、清洗与编码
 │   ├── model_train.py           # 模型训练及训练期间验证
 │   └── model_eval.py            # 独立测试集评估
+├── conftest.py                 # 让 pytest 能找到项目模块
 ├── requirements.txt            # Python 依赖
 ├── run_pipeline.py             # 离线流程入口
 └── README.md
 ```
 
-`data/pre/` 与 `model/ft_bert_dir/` 已在配置中预留，分别用于预处理结果和微调后的模型，由对应功能实现时按需创建，当前尚不存在。
+`data/pre/` 与 `model/ft_bert_dir/` 已在配置中预留，分别用于预处理结果和微调后的模型，由对应功能实现时按需创建，当前尚不存在。`logs/eval/<run_id>/` 由评估步骤自动创建，不需要手工准备。
 
 ## 五人分工
 
@@ -54,7 +65,7 @@
 | 成员 2 | 后端开发 | `app/` | Flask 应用、模型加载、推理接口、参数校验与错误处理 |
 | 成员 3 | 数据处理 | `common/`、`training/dataset.py`、`data/` | 数据检查、共享清洗函数、训练与评估使用的数据集 |
 | 成员 4 | 模型训练 | `training/model_train.py`、`training/config.py` | BERT 微调、每轮验证、最佳模型及分词器导出 |
-| 成员 5 | 模型评估与集成 | `training/model_eval.py`、`run_pipeline.py`、`README.md` | 测试集评估报告、完整离线流程、联调与验收记录 |
+| 成员 5 | 模型评估与集成 | `training/model_eval.py`、`run_pipeline.py`、`README.md`、`docs/` | 测试集评估报告（`docs/eval_report.md`）、完整离线流程、联调与验收记录 |
 
 ### 成员 1：前端开发
 
@@ -166,9 +177,12 @@
 3. **模型交付：** 成员 4 使用成员 3 的数据集训练并导出模型，成员 5 独立评估。
 4. **完整联调：** 成员 2 接入模型，成员 1 接入真实接口，成员 5 组织验收；各成员修复自己模块的问题。
 
+评估步骤（成员 5）已可运行，但**当前没有可评估的模型，因此还没有任何真实指标**。评估要真正跑出结果，
+依赖成员 3 交付 `common/preprocess.py`、成员 4 交付 `model/ft_bert_dir/`，缺任一项都会以明确的中文错误失败。
+
 ## 环境与运行说明
 
-Python 依赖以 `requirements.txt` 为准。项目目前列出 Flask、pandas、pytest 和 requests；PyTorch、Transformers 等模型依赖尚未列入，由成员 4 确认与团队 Python、CPU/CUDA 环境兼容的版本后补充。Python 版本与依赖组合仍需团队统一验证。
+Python 依赖以 `requirements.txt` 为准。项目目前列出 Flask、pandas、pytest、requests 和 scikit-learn；PyTorch、Transformers 等模型依赖尚未列入，由成员 4 确认与团队 Python、CPU/CUDA 环境兼容的版本后补充。Python 版本与依赖组合仍需团队统一验证。
 
 在项目根目录创建虚拟环境并安装当前依赖：
 
@@ -177,15 +191,146 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-查看当前离线占位流程：
+运行离线流程：
 
 ```powershell
 .\.venv\Scripts\python.exe run_pipeline.py
 ```
 
-当前命令只输出阶段提示并调用空的评估函数，不会真正清洗数据、训练模型或生成评估结果。
+**退出码含义**（脚本退出码即结论，不要只看屏幕输出）：
+
+| 退出码 | 含义 |
+| --- | --- |
+| 0 | 三步全部真的完成 |
+| 1 | 有步骤真实失败（异常或产物缺失） |
+| 3 | 没有失败，但有步骤因「尚未实现」或「依赖缺失」被跳过 |
+
+被跳过的步骤**不会**返回 0，避免出现「没做完却报告成功」。
+
+常用参数：
+
+```powershell
+# 只评估已交付的模型，跳过数据准备与训练
+.\.venv\Scripts\python.exe run_pipeline.py --eval-only
+
+# 复用已有预处理结果，只重跑训练与评估
+.\.venv\Scripts\python.exe run_pipeline.py --skip-train
+
+# 单独跑评估（等价于 --eval-only），可临时覆盖批大小与最大长度
+.\.venv\Scripts\python.exe -m training.model_eval --batch-size 64 --max-length 64
+```
+
+当前数据准备（成员 3）与训练（成员 4）尚未实现，直接运行 `run_pipeline.py` 会在第一步如实报到「跳过」并以退出码 3 结束，不会伪造任何成功输出。
+
+在没有模型的机器上，可以先用单元测试验证报告渲染与误判整理逻辑（不需要 torch）：
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests -v
+```
 
 前端尚无 `package.json`，后端尚无服务启动入口，因此当前不能直接执行前端启动命令或 `python wsgi.py`。成员 1、2 完成功能后，由成员 5 将验证过的安装、启动与联调命令补充到本节。
+
+## 模型评估与复核
+
+评估由 `training/model_eval.py` 实现，负责人成员 5。**评估结果全部由脚本产出，文档中不手工填写任何指标。**
+
+运行方式：
+
+```powershell
+.\.venv\Scripts\python.exe run_pipeline.py --eval-only
+.\.venv\Scripts\python.exe -m training.model_eval
+```
+
+### 评估口径
+
+- **跑全量测试集**（当前 1197 条），按 CSV 原始顺序批处理，**不抽样、不 shuffle**。
+  早期版本曾用「随机抽 16 条 × 128 次」，既未覆盖全量、又因缺少随机种子无法复核，已整体替换。
+- **测试集只用于最终评估，不参与任何调参。** 调参与选模型一律使用 `valid.csv`（成员 4）。
+  测试集指标不允许作为反复调参的依据。
+- 预处理沿用成员 3 的 `common/preprocess.py`。该模块缺失时评估**直接失败**而不是降级跳过清洗，
+  以保证离线指标与后端（成员 2）推理口径一致。
+
+### 记录内容
+
+| 类别 | 具体字段 |
+| --- | --- |
+| 指标 | 准确率、各类别 Precision/Recall/F1 与支持数、宏平均 F1、加权 F1、Cohen's kappa、混淆矩阵 |
+| 模型版本 | `model/ft_bert_dir` 目录指纹（12 位 `version_id`）、`config.json`/`tokenizer_config.json`/`vocab.txt` 的 sha256、权重文件名与字节数 |
+| 基座模型 | `model/google-bert/bert-base-chinese` 目录指纹与 `config.json` sha256 |
+| 数据版本 | `train.csv`/`valid.csv`/`test.csv` 的 sha256、行数与标签分布 |
+| 代码版本 | git commit 与工作区是否 dirty |
+| 运行设备 | 设备类型、CUDA 是否可用、GPU 名称、各依赖版本、`max_length` |
+| 推理耗时 | 清洗、分词、前向推理、端到端各自的每样本耗时与吞吐；单批耗时的 mean/p50/p90/p95/p99/max，并保留逐批原始值 |
+| 典型误判 | 全部误判明细 + 按多种口径挑出的典型样本 |
+
+耗时口径：先跑 3 个批次预热并丢弃结果，再全量正式计时，以排除 CUDA 首次调用开销；
+评估使用 `padding='max_length'`，保证每次运行张量形状一致、耗时可比。
+**延迟与机器强相关，只能同机前后对比，不可跨机器比较。**
+
+### 复核方式
+
+每次运行产出一个 `run_id`（时间戳），产物位于 `logs/eval/<run_id>/`（该目录不纳入 Git）：
+
+- `metrics.json` — 全部结构化指标、版本指纹、耗时明细与逐批原始耗时
+- `report.md` — 中文可读报告：摘要、指标表、混淆矩阵、耗时、典型误判、告警与已知限制
+- `misclassifications.json` — 全部误判，含 CSV 行号、原文、真实/预测标签、置信度与选取口径
+
+复核步骤：
+
+1. 取报告中记录的 `data_version` 中 test.csv 的 sha256，与当前文件比对，确认是同一份测试集。
+2. 取 `model_version_id` 与 `config.json` 的 sha256，确认是同一个模型。
+3. 用相同的 `batch_size` 与 `max_length` 重跑，指标应当完全一致（全量评估本身是确定性的；
+   耗时会随机器负载浮动，属正常）。
+4. 按 `misclassifications.json` 里的 `line_number` 回到 `data/raw/test.csv` 对应行核对原文。
+
+指标为 0 或很低的常见原因：模型尚未训练、标签映射与 `thy_labels.txt` 不一致、
+或清洗函数与训练时使用的版本不同。
+
+### 典型误判的选取规则
+
+按多种口径取并集（按行号去重，上限 30 条）后写入明细，报告正文展示前 10 条：
+
+| 口径 | 上限 | 关注点 |
+| --- | --- | --- |
+| 各真实类别的误判 | 每类 5 条 | 保证每个混淆方向都有代表 |
+| 高置信度误判 | 10 条 | 模型很自信却错了，优先怀疑测试集标注噪声 |
+| 低置信度误判 | 10 条 | 贴近决策边界的难例 |
+| 最长文本误判 | 5 条 | 是否因 `max_length` 截断丢了关键信息 |
+| 最短文本误判 | 5 条 | 信息量不足 |
+
+入库的定稿报告见 [`docs/eval_report.md`](docs/eval_report.md)（目前为待评估状态，拿到真实模型后由成员 5 更新）。
+
+### 已知限制
+
+- 标签文件 `model/thy_labels.txt` 缺失时，报告使用 `类别0`/`类别1` 占位名并在告警中说明，
+  **不默认推断 0=差评、1=好评**；此时请以成员 4 导出的标签文件为准。
+- `reached_max_length` 表示文本 token 数达到上限（可能被截断），不是严格意义上的「一定被截断」。
+- 延迟数据仅作同机冒烟参考。
+- 本评估只覆盖离线测试集，线上表现仍需按下节的集成验收逐项确认。
+
+## 集成验收记录
+
+负责人：成员 5；各项的实测人见「负责人」列。**联调尚未进行，下表为待填模板，不得预填任何编造的实测结果。**
+
+| 验收项 | 输入 | 期望结果 | 实际结果 | 结论 | 问题编号 | 负责人 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 正常输入（单条） | `{"text": "味道很好，配送及时。"}` | 返回标签与置信度，`code=200` | 待联调 | 待联调 | — | 成员 2 |
+| 正常输入（多条） | `text` 为 3 条字符串的数组 | 结果顺序与输入一致 | 待联调 | 待联调 | — | 成员 2 |
+| **空输入** | `{"text": ""}`、`{"text": []}`、空 TXT 文件 | 明确错误响应，不返回 500 | 待联调 | 待联调 | — | 成员 2 |
+| **文件编码错误** | 非 UTF-8（如 GBK）编码的 TXT | 明确提示编码错误，不 500 | 待联调 | 待联调 | — | 成员 2 |
+| **批量输入** | 每行一条评价的 UTF-8 TXT | 全部返回且顺序一致，条数与输入相同 | 待联调 | 待联调 | — | 成员 1、成员 2 |
+| 超长文本 | 超过 `max_length` 的评价 | 截断后正常返回，不报错 | 待联调 | 待联调 | — | 成员 2、成员 4 |
+| 模型未就绪 | 移除 `model/ft_bert_dir/` 后启动 | `/api/v1/` 能区分模型是否就绪 | 待联调 | 待联调 | — | 成员 2 |
+| 离线与在线一致性 | 同一段文本分别走接口与离线推理 | 标签与置信度一致 | 待联调 | 待联调 | — | 成员 2、成员 5 |
+| 页面到模型全链路 | 前端输入 → 后端 → 真实模型 | 页面展示真实预测结果 | 待联调 | 待联调 | — | 成员 1、成员 5 |
+
+### 问题清单
+
+规则：上表中结论为「不通过」的每一项，都必须在此登记一个非空的问题编号。
+
+| 问题编号 | 现象 | 影响 | 负责人 | 状态 | 关联提交 |
+| --- | --- | --- | --- | --- | --- |
+| — | 联调尚未开始，暂无问题记录 | — | — | — | — |
 
 ## 团队协作
 
