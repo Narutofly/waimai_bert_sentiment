@@ -1,0 +1,12 @@
+/* TODO(frontend): 补充团队样式规范与响应式布局。 */
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  color: #202124;
+  background: #f6f7f8;
+}
+main {
+  max-width: 52rem;
+  margin: 12vh auto;
+  padding: 2rem;
+}
