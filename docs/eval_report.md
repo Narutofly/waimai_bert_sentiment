@@ -2,13 +2,27 @@
 
 > **当前状态：待评估 —— 本文件尚无任何指标数据。**
 >
-> 评估逻辑已在 `training/model_eval.py` 实现并可运行，但目前缺少两个前置条件，无法产出真实指标：
+> **阻塞项是报告功能未实现，而非前置条件缺失。**
 >
-> 1. `common/preprocess.py` 中的 `clean_text_for_bert` —— 负责人：成员 3
-> 2. `model/ft_bert_dir/` 下微调后的模型与分词器 —— 负责人：成员 4
+> `training/model_eval.py` 目前只有 `evaluate()` 的分批前向评测（输出准确率与单样本耗时），
+> 本文件描述的报告主体 —— 混淆矩阵、各类别 Precision/Recall/F1 与宏平均、典型误判整理、
+> 模型目录指纹与数据 sha256、运行环境与耗时拆解 —— **均未实现**，因此无法产出本文件。
 >
-> 评估在缺少上述任一条件时**会明确失败**，不会降级产出一份看起来权威、实则与后端口径不一致的报告。
-> 待成员 3、成员 4 交付后，由成员 5 运行评估并按下述格式更新本文件。
+> 对应规格已由 `tests/test_model_eval_report.py` 先行写好（TDD），覆盖显示宽度、对齐、
+> 混淆矩阵、指标表、误判排序、目录指纹、依赖检查等，**当前 14 项失败**，待实现后转绿。
+>
+> 两个前置条件当前**已具备**：
+>
+> 1. `common/preprocess.py` 中的 `clean_text_for_bert` —— 已随团队代码合入
+> 2. `model/ft_bert_dir/` 下的 2 分类模型与分词器 —— 本地已存在
+>    （`classifier.weight [2, 768]`、`model.safetensors` 409 MB、`tokenizer.json`）
+>
+> 需要注意：基座模型目录 `model/google-bert/bert-base-chinese`（即 `Config.bert_model_dir`）
+> 当前缺失，`training/model_train.py` 的 `train()` 因此无法重跑。这影响**复现训练**，
+> 不影响对已有 `model/ft_bert_dir` 的评测。
+>
+> 评估在缺少前置条件时**会明确失败**，不会降级产出一份看起来权威、实则与后端口径不一致的报告。
+> 待报告功能实现后，由成员 5 运行评估并按下述格式更新本文件。
 
 ## 报告来源
 
@@ -17,7 +31,7 @@
 | run_id | 待填写 |
 | 生成时间 | 待填写 |
 | 原始产物 | `logs/eval/<run_id>/`（不纳入 Git） |
-| 生成命令 | `.\.venv\Scripts\python.exe run_pipeline.py --eval-only` |
+| 生成命令 | `.\.venv\Scripts\python.exe run_pipeline.py --eval-only`（该开关**尚未实现**：`run_pipeline.py` 目前无参数解析，见上方阻塞项） |
 
 本文件是从 `logs/eval/<run_id>/report.md` 誊抄的定稿摘要，供不运行流程的人直接查看。
 **原始证据以 `logs/eval/<run_id>/metrics.json` 为准**，任何指标都应能在那里逐字段复核。
