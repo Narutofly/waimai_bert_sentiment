@@ -17,7 +17,7 @@ from training import model_eval
 def test_display_width_counts_cjk_as_two_columns():
     assert model_eval._display_width("差评") == 4
     assert model_eval._display_width("ab") == 2
-    assert model_eval._display_width("真实:差评") == 2 + 1 + 4
+    assert model_eval._display_width("真:差评") == 2 + 1 + 4
 
 
 def test_pad_aligns_by_display_width_not_len():
