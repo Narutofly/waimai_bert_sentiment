@@ -5,6 +5,7 @@ import AppIcon from './components/AppIcon.vue'
 import InsightPanel from './components/InsightPanel.vue'
 import ModelReport from './components/ModelReport.vue'
 import ReviewFeed from './components/ReviewFeed.vue'
+import WelcomeScene from './components/WelcomeScene.vue'
 import { checkConnection, classifyReviews, DEMO_MODE } from './services/sentiment.js'
 
 const seedText = `粥还是热的，包装很用心，下次还会点。
@@ -36,6 +37,12 @@ function notify(message) {
   notice.value = message
   clearTimeout(noticeTimer)
   noticeTimer = setTimeout(() => { notice.value = '' }, 4000)
+}
+function tryExample() {
+  if (busy.value) return
+  text.value = seedText
+  navigate('analyze')
+  analyze()
 }
 function navigate(id) {
   activeSection.value = id
@@ -169,33 +176,7 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <section id="top" class="hero">
-      <div class="hero-inner">
-        <div class="location-row">
-          <span><AppIcon name="store" />听见 · 评价工作室</span>
-          <span class="binary-stamp">BINARY SENTIMENT / 01</span>
-        </div>
-        <div class="hero-copy">
-          <div>
-            <p class="eyebrow"><span>AI</span> 评论经营助手</p>
-            <h1>好评，是认可。<br />差评，是改进的开始。</h1>
-            <p>把顾客的每一句话，变成看得见的反馈。</p>
-            <div class="hero-actions"><button class="hero-start" @click="navigate('analyze')">分析一组评价 <AppIcon name="arrow" /></button><span>1 好评 <i /> 0 差评</span></div>
-          </div>
-          <div class="hero-orbit" aria-hidden="true">
-            <span class="orbit-card good"><span>1 / 好评</span><b>这顿饭，值得再来。</b><small>每份用心，都被看见</small></span>
-            <span class="orbit-card risk"><span>0 / 差评</span><b>下一次，可以更好。</b><small>从一条反馈开始改进</small></span>
-            <span class="orbit-center"><AppIcon name="spark" /></span>
-          </div>
-        </div>
-        <div class="hero-search" role="search">
-          <AppIcon name="search" />
-          <input v-model="search" aria-label="搜索评价" type="search" placeholder="搜一搜，顾客提到了什么？" @keydown.enter="navigate('reviews')" />
-          <span>{{ results.length }} 条评价</span>
-          <button type="button" @click="navigate('reviews')">搜索</button>
-        </div>
-      </div>
-    </section>
+    <WelcomeScene :demo-mode="DEMO_MODE" @start="navigate('analyze')" @example="tryExample" @results="navigate('reviews')" />
 
     <main>
       <section id="analyze" class="workspace-section">
