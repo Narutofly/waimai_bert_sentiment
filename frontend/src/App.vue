@@ -6,6 +6,7 @@ import InsightPanel from './components/InsightPanel.vue'
 import ModelReport from './components/ModelReport.vue'
 import ReviewFeed from './components/ReviewFeed.vue'
 import WelcomeScene from './components/WelcomeScene.vue'
+import './desktop.css'
 import { checkConnection, classifyReviews, DEMO_MODE } from './services/sentiment.js'
 
 const seedText = `粥还是热的，包装很用心，下次还会点。
