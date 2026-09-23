@@ -1,11 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import AnalyzerCard from './components/AnalyzerCard.vue'
 import AppIcon from './components/AppIcon.vue'
 import InsightPanel from './components/InsightPanel.vue'
 import ModelReport from './components/ModelReport.vue'
 import ReviewFeed from './components/ReviewFeed.vue'
-import TopicPanel from './components/TopicPanel.vue'
 import { checkConnection, classifyReviews, DEMO_MODE } from './services/sentiment.js'
 
 const seedText = `粥还是热的，包装很用心，下次还会点。
@@ -20,14 +19,48 @@ const error = ref('')
 const search = ref('')
 const connection = ref(DEMO_MODE ? 'demo' : 'checking')
 const elapsed = ref('')
+const activeFilter = ref('all')
+const activeSection = ref('top')
+const notice = ref('')
+let noticeTimer
+let frame
+const navItems = [
+  { id: 'top', label: '首页', icon: 'home' },
+  { id: 'analyze', label: '评论分析', icon: 'bubble' },
+  { id: 'reviews', label: '评价明细', icon: 'filter' },
+  { id: 'model', label: '模型报告', icon: 'brain' },
+]
+function notify(message) {
+  notice.value = message
+  clearTimeout(noticeTimer)
+  noticeTimer = setTimeout(() => { notice.value = '' }, 4000)
+}
+function navigate(id) {
+  activeSection.value = id
+  document.getElementById(id)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' })
+}
+function filterResults(filter) {
+  search.value = ''
+  activeFilter.value = filter
+  navigate('reviews')
+}
+function updateSection() {
+  cancelAnimationFrame(frame)
+  frame = requestAnimationFrame(() => {
+    const sections = navItems.filter((item) => document.getElementById(item.id)?.getBoundingClientRect().top <= 150)
+    activeSection.value = sections.at(-1)?.id || 'top'
+  })
+}
+watch(text, () => { error.value = '' })
 
 const lines = computed(() => text.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))
 const positiveCount = computed(() => results.value.filter((item) => item.tone === 'positive').length)
 const negativeCount = computed(() => results.value.filter((item) => item.tone === 'negative').length)
-const reviewCount = computed(() => results.value.filter((item) => !item.is_certain).length)
-const averageConfidence = computed(() => results.value.length
-  ? results.value.reduce((sum, item) => sum + item.confidenceValue, 0) / results.value.length
-  : 0)
+const reviewCount = computed(() => results.value.filter((item) => item.needsReview).length)
+const scored = computed(() => results.value.filter((item) => item.confidenceValue !== null))
+const averageConfidence = computed(() => scored.value.length
+  ? scored.value.reduce((sum, item) => sum + item.confidenceValue, 0) / scored.value.length
+  : null)
 const positiveRate = computed(() => results.value.length ? positiveCount.value / results.value.length * 100 : 0)
 const summary = computed(() => ({
   total: results.value.length,
@@ -36,6 +69,7 @@ const summary = computed(() => ({
   review: reviewCount.value,
   average: averageConfidence.value,
   positiveRate: positiveRate.value,
+  scored: scored.value.length,
 }))
 const buckets = computed(() => {
   const ranges = [
@@ -52,7 +86,7 @@ const buckets = computed(() => {
   return ranges
 })
 
-async function analyze() {
+async function analyze(scroll = true) {
   if (busy.value) return
   error.value = ''
   if (!lines.value.length) {
@@ -67,11 +101,13 @@ async function analyze() {
   const started = performance.now()
   try {
     results.value = await classifyReviews(lines.value)
+    activeFilter.value = 'all'
+    search.value = ''
     elapsed.value = ((performance.now() - started) / 1000).toFixed(1)
-    window.setTimeout(() => document.querySelector('#insights')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+    if (!DEMO_MODE) connection.value = 'online'
+    if (scroll) notify(`${DEMO_MODE ? '演示' : ''}分析完成，共 ${results.value.length} 条评价`)
   } catch (cause) {
     error.value = cause.message || '分析失败，请稍后重试。'
-    connection.value = 'offline'
   } finally {
     busy.value = false
   }
@@ -79,10 +115,10 @@ async function analyze() {
 
 function exportCsv(items = results.value) {
   if (!items.length) return
-  const escapeCell = (value) => `"${String(value).replace(/"/g, '""')}"`
+  const escapeCell = (value) => { const cell = String(value); return `"${(/^[\s\uFEFF]*[=+@-]/.test(cell) ? `'${cell}` : cell).replace(/"/g, '""')}"` }
   const rows = [
-    ['评价内容', '情感判断', '置信度', '建议复核'],
-    ...items.map((item) => [item.text, item.label, item.confidence, item.is_certain ? '否' : '是']),
+    ['评价内容', '标签编号', '情感判断', '置信度', '建议复核', '来源'],
+    ...items.map((item) => [item.text, item.labelId, item.label, item.confidence ?? '未提供', item.confidence === null ? '无法判断' : item.needsReview ? '是' : '否', DEMO_MODE ? '模拟演示' : '模型接口']),
   ]
   const csv = '\uFEFF' + rows.map((row) => row.map(escapeCell).join(',')).join('\r\n')
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
@@ -90,15 +126,22 @@ function exportCsv(items = results.value) {
   link.href = url
   link.download = `听见外卖-评价分析-${new Date().toISOString().slice(0, 10)}.csv`
   link.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  notify(`已导出 ${items.length} 条评价`)
 }
 
 onMounted(async () => {
+  window.addEventListener('scroll', updateSection, { passive: true })
   if (DEMO_MODE) {
-    await analyze()
+    await analyze(false)
     return
   }
   connection.value = await checkConnection() ? 'online' : 'offline'
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', updateSection)
+  cancelAnimationFrame(frame)
+  clearTimeout(noticeTimer)
 })
 </script>
 
@@ -111,10 +154,7 @@ onMounted(async () => {
           <span><b>听见</b><small>外卖评论洞察</small></span>
         </a>
         <nav class="desktop-nav" aria-label="页面导航">
-          <a class="active" href="#analyze">评论分析</a>
-          <a href="#topics">主题洞察</a>
-          <a href="#reviews">评价明细</a>
-          <a href="#model">模型报告</a>
+          <a v-for="item in navItems.slice(1)" :key="item.id" :href="`#${item.id}`" :class="{ active: activeSection === item.id }" :aria-current="activeSection === item.id ? 'location' : undefined" @click.prevent="navigate(item.id)">{{ item.label }}</a>
         </nav>
         <div class="service-state" :data-state="connection">
           <i />
@@ -126,25 +166,27 @@ onMounted(async () => {
     <section id="top" class="hero">
       <div class="hero-inner">
         <div class="location-row">
-          <span><AppIcon name="pin" />校园商圈 · 示例门店</span>
-          <button type="button">切换门店 <AppIcon name="chevron" /></button>
+          <span><AppIcon name="store" />听见 · 评价工作室</span>
+          <span class="binary-stamp">BINARY SENTIMENT / 01</span>
         </div>
         <div class="hero-copy">
           <div>
             <p class="eyebrow"><span>AI</span> 评论经营助手</p>
-            <h1>听懂顾客的每一句反馈</h1>
-            <p>批量识别外卖评价情绪，快速找到值得关注的差评和模糊反馈。</p>
+            <h1>好评，是认可。<br />差评，是改进的开始。</h1>
+            <p>把顾客的每一句话，变成看得见的反馈。</p>
+            <div class="hero-actions"><button class="hero-start" @click="navigate('analyze')">分析一组评价 <AppIcon name="arrow" /></button><span>1 好评 <i /> 0 差评</span></div>
           </div>
           <div class="hero-orbit" aria-hidden="true">
-            <span class="orbit-card good">好评 <b>{{ summary.positive }}</b></span>
-            <span class="orbit-card risk">待复核 <b>{{ summary.review }}</b></span>
+            <span class="orbit-card good"><span>1 / 好评</span><b>这顿饭，值得再来。</b><small>每份用心，都被看见</small></span>
+            <span class="orbit-card risk"><span>0 / 差评</span><b>下一次，可以更好。</b><small>从一条反馈开始改进</small></span>
             <span class="orbit-center"><AppIcon name="spark" /></span>
           </div>
         </div>
         <label class="hero-search">
           <AppIcon name="search" />
-          <input v-model="search" type="search" placeholder="搜索本次评价中的关键词" />
+          <input v-model="search" aria-label="搜索评价" type="search" placeholder="搜一搜，顾客提到了什么？" @keydown.enter="navigate('reviews')" />
           <span>{{ results.length }} 条评价</span>
+          <button type="button" @click="navigate('reviews')">搜索</button>
         </label>
       </div>
     </section>
@@ -157,13 +199,11 @@ onMounted(async () => {
         </div>
         <div class="workspace-grid">
           <AnalyzerCard v-model="text" :busy="busy" :error="error" :line-count="lines.length" :demo-mode="DEMO_MODE" @analyze="analyze" />
-          <InsightPanel id="insights" :summary="summary" :buckets="buckets" :busy="busy" :elapsed="elapsed" />
+          <InsightPanel id="insights" :summary="summary" :buckets="buckets" :busy="busy" :elapsed="elapsed" :demo-mode="DEMO_MODE" @filter="filterResults" />
         </div>
       </section>
 
-      <TopicPanel :results="results" />
-
-      <ReviewFeed v-model:search="search" :results="results" :busy="busy" @export="exportCsv" />
+      <ReviewFeed v-model:search="search" v-model:active-filter="activeFilter" :results="results" :busy="busy" :demo-mode="DEMO_MODE" @export="exportCsv" />
 
       <ModelReport />
     </main>
@@ -174,10 +214,8 @@ onMounted(async () => {
     </footer>
 
     <nav class="mobile-nav" aria-label="移动端导航">
-      <a href="#top"><AppIcon name="home" /><span>首页</span></a>
-      <a class="active" href="#analyze"><AppIcon name="bubble" /><span>分析</span></a>
-      <a href="#topics"><AppIcon name="chart" /><span>洞察</span></a>
-      <a href="#model"><AppIcon name="store" /><span>模型</span></a>
+      <a v-for="item in navItems" :key="item.id" :href="`#${item.id}`" :class="{ active: activeSection === item.id }" :aria-current="activeSection === item.id ? 'location' : undefined" @click.prevent="navigate(item.id)"><AppIcon :name="item.icon" /><span>{{ item.label }}</span></a>
     </nav>
+    <div class="notice-region" role="status" aria-live="polite"><Transition name="toast"><div v-if="notice" class="notice-toast"><AppIcon name="bubble" />{{ notice }}</div></Transition></div>
   </div>
 </template>
