@@ -3,7 +3,7 @@ preprocess - 文本预处理（离线训练与在线推理共用）
 
 单条文本级处理：HTML 清洗 → Unicode 规范化 → 正则清理
 
-Author: 骆昊
+Author: 关为贤  于凯  胡航波   陈锋  黄硕
 Version: 0.0.1
 """
 import html

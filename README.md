@@ -6,6 +6,16 @@
 
 项目已进入前后端联调阶段：后端可加载微调模型提供推理接口，前端页面可调用真实接口展示结果。以下分工基于现有目录，不额外拆分项目架构；成员 1～5 可替换为实际姓名。
 
+## 界面预览
+
+首页：
+
+![首页](docs/images/ui-home.png)
+
+评论分析页：
+
+![评论分析](docs/images/ui-analysis.png)
+
 ## 当前进度
 
 已完成：
@@ -46,7 +56,10 @@
 │       ├── valid.csv            # 验证集 1,197 条
 │       └── test.csv             # 测试集 1,197 条
 ├── docs/
-│   └── eval_report.md           # 测试集评估定稿报告（唯一入库的评估产物）
+│   ├── eval_report.md           # 测试集评估定稿报告（唯一入库的评估产物）
+│   └── images/                  # README 界面截图
+│       ├── ui-home.png
+│       └── ui-analysis.png
 ├── frontend/                    # 前端：Vue 3 + Vite
 │   ├── src/
 │   │   ├── App.vue              # 页面框架、状态汇总与接口调用
